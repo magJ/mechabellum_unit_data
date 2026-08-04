@@ -100,10 +100,9 @@ Reads `mechabellum_units.csv` (standard roster only) and writes:
   build its interactive matrix in the browser
 
 `index.html` is a standalone page (open it directly, or host it on GitHub
-Pages — Settings → Pages → deploy from branch, root folder) with toggle
-buttons for both tech-tree upgrade tiers plus the Senior Attack/Defense
-Specialist cards, color-coded by hits saved/lost vs. the no-upgrade
-baseline. ATK/HP Upgrade 2 auto-enables (and disabling Upgrade 1
+Pages) with toggle buttons for both tech-tree upgrade tiers plus the Senior
+Attack/Defense Specialist cards, color-coded by hits saved/lost vs. the
+no-upgrade baseline. ATK/HP Upgrade 2 auto-enables (and disabling Upgrade 1
 auto-disables) Upgrade 1, matching the game's own prerequisite; the
 Specialist cards are independent of the tech tree and of each other, per
 their in-game behavior as separately-purchased commander cards.
@@ -115,7 +114,17 @@ isn't an issue once it's hosted on GitHub Pages.
 
 **Keeping it up to date:** after a game patch, re-run
 `extract_unit_stats.py` then `build_kill_matrix.py` to regenerate
-`units_data.json` — `index.html` itself needs no changes.
+`units_data.json`, then commit and push — `index.html` itself needs no
+changes.
+
+### Deploying to GitHub Pages
+
+`.github/workflows/deploy-pages.yml` publishes the repo root on every push
+to `master` (or manually via the Actions tab's "Run workflow" button). One
+manual step is required once per repo: in **Settings → Pages**, set
+**Source** to **GitHub Actions** (not "Deploy from a branch" — that's a
+different mechanism and won't pick up this workflow). After that, every
+push to `master` redeploys automatically.
 
 ## How it works
 
