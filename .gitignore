@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# IDE
+.idea/
+
+# Derived game binaries (thinned copy of the installed game's GameAssembly
+# dylib, used to reconstruct the data schema). Not ours to redistribute and
+# not needed in the repo -- extract_unit_stats.py regenerates this
+# automatically from the local game install on first run.
+tools/
