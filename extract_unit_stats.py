@@ -264,7 +264,9 @@ def _read_len_string(data, pos):
     return s, pos
 
 
-def get_localized_name(resources_assets_bytes, term_key, lang_index=0):
+def get_localized_names(resources_assets_bytes, term_key):
+    """All translations for a term key, in the game's fixed language order
+    (see find_language_list) -- e.g. index 0 is always English."""
     key_bytes = term_key.encode()
     needle = struct.pack("<i", len(key_bytes)) + key_bytes
     idx = resources_assets_bytes.find(needle)
@@ -275,13 +277,50 @@ def get_localized_name(resources_assets_bytes, term_key, lang_index=0):
     pos += 4  # TermType (int32), unused
     (num_langs,) = struct.unpack_from("<i", resources_assets_bytes, pos)
     pos += 4
-    if not (0 <= lang_index < num_langs):
-        return None
-    for i in range(num_langs):
+    names = []
+    for _ in range(num_langs):
         s, pos = _read_len_string(resources_assets_bytes, pos)
-        if i == lang_index:
-            return s
-    return None
+        names.append(s)
+    return names
+
+
+def get_localized_name(resources_assets_bytes, term_key, lang_index=0):
+    names = get_localized_names(resources_assets_bytes, term_key)
+    if names is None or not (0 <= lang_index < len(names)):
+        return None
+    return names[lang_index]
+
+
+def find_language_list(resources_assets_bytes):
+    """The game's I2 Localization language list (name + code, in the same
+    fixed order get_localized_names returns translations in), read from the
+    LanguageSourceData's mLanguages field.
+
+    Anchored on an English mLanguages entry (name "English", code "en")
+    rather than a hardcoded language count, so this keeps working if the
+    game adds a language. Just anchoring on the string "English" isn't
+    specific enough -- the game also has a "Language/English" *term* (a
+    per-language translation of the word "English" itself, for a settings
+    menu) whose data happens to parse as a plausible-but-wrong language
+    list, since every term has the same language count. Requiring the
+    two-letter code "en" right after rules that false match out, since the
+    term's translations are full words, not a code.
+    """
+    needle = b"English\x00" + struct.pack("<i", 2) + b"en"
+    idx = resources_assets_bytes.find(needle)
+    if idx == -1:
+        raise LookupError('language list anchor ("English"/"en") not found')
+    name_start = idx - 4  # back up over "English"'s own length prefix
+    (num_langs,) = struct.unpack_from("<i", resources_assets_bytes, name_start - 4)
+    pos = name_start
+    languages = []
+    for _ in range(num_langs):
+        name, pos = _read_len_string(resources_assets_bytes, pos)
+        code, pos = _read_len_string(resources_assets_bytes, pos)
+        pos += 1  # Flags (bool)
+        pos += (-pos) % 4
+        languages.append({"name": name, "code": code})
+    return languages
 
 
 def main():

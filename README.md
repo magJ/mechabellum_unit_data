@@ -96,8 +96,10 @@ Reads `mechabellum_units.csv` (standard roster only) and writes:
 - `hits_matrix_upgrades.csv` — long format, every matchup across all 9
   ATK-upgrade × HP-upgrade tech-tree combinations, with a `hits_delta` vs.
   baseline column for pivoting
-- `units_data.json` — the minimal per-unit fields `index.html` fetches to
-  build its interactive matrix in the browser
+- `units_data.json` — everything `index.html` fetches to build the page:
+  `{languages: [...], units: [...], upgradeTerms: {...}}`. Each unit's
+  `names` array and each `upgradeTerms` entry (`atk1`/`atk2`/`hp1`/`hp2`) is
+  indexed the same way as `languages`.
 
 `index.html` is a standalone page (open it directly, or host it on GitHub
 Pages) with toggle buttons for both tech-tree upgrade tiers plus the Senior
@@ -106,6 +108,47 @@ no-upgrade baseline. ATK/HP Upgrade 2 auto-enables (and disabling Upgrade 1
 auto-disables) Upgrade 1, matching the game's own prerequisite; the
 Specialist cards are independent of the tech tree and of each other, per
 their in-game behavior as separately-purchased commander cards.
+
+The four tech-upgrade buttons use the game's own button text verbatim
+(`GameRiver.BlueprintData` term keys, confirmed by their descriptions
+matching our +12/+24/+15/+30% model): **"Attack Enhancement"**, **"Attack
+Enhancement II"**, **"Defense Enhancement"**, **"Defense Enhancement II"**.
+Two things worth knowing if you're comparing against the game's UI: it's
+"Defense" (American spelling), and neither tier-1 label carries a "I" --
+only tier 2 gets "II" -- for *both* ATK and HP, not just HP. That's the
+game's own text as extracted, not a guess.
+
+The small "A/文" control in the top-right switches the page's language. It
+defaults to matching the browser's language (`navigator.languages`, falling
+back to English for anything the game doesn't ship), then remembers
+whatever you pick after that via `localStorage`. Unit names and the four
+upgrade button labels come from the game's own I2 Localization data
+(`extract_unit_stats.find_language_list` reads the real language list --
+name, code, and fixed ordering -- straight from the same
+`LanguageSourceAsset` the unit names come from, rather than a hardcoded
+guess). Everything else on the page (headings, legend, summary labels, the
+Senior Specialist card names, tooltip text) has no in-game source, so those
+are our own translations into all 11 languages (`UI_STRINGS` in
+`index.html`) -- good-faith, not verified by native speakers or the game's
+own localization team.
+
+The dropdown's own labels (what you see in the closed select before picking
+a language) are each language's name for itself, not English -- "Русский",
+not "Russian". `find_language_list`'s raw entries are the game's *English*
+label for each ("Russian", "French", ...); `build_kill_matrix.resolve_native_language_names`
+swaps those for the real autonym, sourced from the game's own
+"Language/English", "Language/Russian", etc. terms (each one's translation
+into its own language is exactly the language's name for itself -- verbatim
+game text, same as the upgrade button names). Chinese keeps its two
+already-distinct native names as-is (简体中文 / 繁体中文); Spanish's two
+game locales share one generic "Language/Spanish" term with no
+region-specific native text, so those two get a plain "(España)" /
+"(Latinoamérica)" suffix added onto the extracted "Español" -- the one spot
+where we compose rather than extract verbatim. (One curiosity if you go
+poking at the raw data: the game's own Polish translation of "Polish" is
+"Polskie", an adjectival form rather than "polski" -- kept as-is rather
+than silently corrected, consistent with treating the game's text as
+ground truth rather than something to edit.)
 
 **Local testing note:** `index.html` loads `units_data.json` via `fetch()`,
 which browsers block on a bare `file://` page. Serve the folder instead,

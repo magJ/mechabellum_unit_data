@@ -49,8 +49,21 @@
 
   .wrap { max-width: 1400px; margin: 0 auto; }
 
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
   h1 { font-size: 1.5rem; margin: 0 0 4px; }
   .subtitle { color: var(--text-secondary); font-size: 0.95rem; margin: 0 0 20px; max-width: 70ch; line-height: 1.5; }
+
+  .lang-switcher { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-top: 2px; }
+  .lang-icon { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.02em; cursor: pointer; }
+  #lang-select {
+    font: inherit; font-size: 0.72rem; font-weight: 500;
+    padding: 4px 22px 4px 8px; border-radius: 6px; max-width: 110px;
+    border: 1px solid var(--btn-border); background: var(--btn-bg);
+    color: var(--text-primary); cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='%2352514e' d='M4 6l4 4 4-4z'/></svg>");
+    background-repeat: no-repeat; background-position: right 6px center;
+  }
 
   .panel {
     background: var(--surface-1);
@@ -133,9 +146,6 @@
   td.cell.self { color: var(--text-muted); }
   td.cell:hover, td.cell:focus { outline: 2px solid var(--text-primary); outline-offset: -2px; }
 
-  footer { margin-top: 20px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.6; max-width: 70ch; }
-  footer a { color: inherit; }
-
   #tooltip {
     position: fixed; pointer-events: none; z-index: 10;
     background: var(--surface-1); border: 1px solid var(--border);
@@ -150,34 +160,38 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Mechabellum Hits-to-Kill Matrix</h1>
-  <p class="subtitle">
-    Shows the number of hits needed to kill each unit matchup, accounting for attack and HP upgrades.
-  </p>
+  <div class="page-header">
+    <h1 id="page-title"></h1>
+    <div class="lang-switcher" id="lang-switcher">
+      <label for="lang-select" class="lang-icon">A/文</label>
+      <select id="lang-select"></select>
+    </div>
+  </div>
+  <p class="subtitle" id="subtitle"></p>
 
   <div class="panel controls">
     <div class="control-group">
-      <h2>Your attack upgrades</h2>
+      <h2 id="heading-atk"></h2>
       <div class="btn-row">
-        <button class="toggle atk" data-upg="atk1" aria-pressed="false">ATK Upgrade 1 (+12%)</button>
-        <button class="toggle atk" data-upg="atk2" aria-pressed="false" title="Requires ATK Upgrade 1">ATK Upgrade 2 (+24%)</button>
-        <button class="toggle atk" data-upg="specAtk" aria-pressed="false">Senior Attack Specialist (+30%)</button>
+        <button class="toggle atk" data-upg="atk1" aria-pressed="false"></button>
+        <button class="toggle atk" data-upg="atk2" aria-pressed="false"></button>
+        <button class="toggle atk" data-upg="specAtk" aria-pressed="false"></button>
       </div>
     </div>
     <div class="control-group">
-      <h2>Opponent HP upgrades</h2>
+      <h2 id="heading-hp"></h2>
       <div class="btn-row">
-        <button class="toggle hp" data-upg="hp1" aria-pressed="false">HP Upgrade 1 (+15%)</button>
-        <button class="toggle hp" data-upg="hp2" aria-pressed="false" title="Requires HP Upgrade 1">HP Upgrade 2 (+30%)</button>
-        <button class="toggle hp" data-upg="specHp" aria-pressed="false">Senior Defense Specialist (+30%)</button>
+        <button class="toggle hp" data-upg="hp1" aria-pressed="false"></button>
+        <button class="toggle hp" data-upg="hp2" aria-pressed="false"></button>
+        <button class="toggle hp" data-upg="specHp" aria-pressed="false"></button>
       </div>
     </div>
     <div class="summary">
-      Your ATK: <strong id="atk-pct">+0%</strong><br>
-      Opponent HP: <strong id="hp-pct">+0%</strong>
+      <span id="label-your-atk"></span> <strong id="atk-pct">+0%</strong><br>
+      <span id="label-opponent-hp"></span> <strong id="hp-pct">+0%</strong>
     </div>
     <div class="legend" style="width:100%;">
-      <span>Fewer hits needed</span>
+      <span id="legend-fewer"></span>
       <span class="legend-scale">
         <div style="background:var(--good-pole)"></div>
         <div style="background:color-mix(in srgb, var(--good-pole) 45%, var(--neutral-mid))"></div>
@@ -185,22 +199,291 @@
         <div style="background:color-mix(in srgb, var(--bad-pole) 45%, var(--neutral-mid))"></div>
         <div style="background:var(--bad-pole)"></div>
       </span>
-      <span>More hits needed</span>
-      <span style="margin-left:16px;"><span class="legend-swatch legend-na"></span> can't target</span>
+      <span id="legend-more"></span>
+      <span style="margin-left:16px;"><span class="legend-swatch legend-na"></span> <span id="legend-na"></span></span>
     </div>
   </div>
 
   <div class="matrix-shell" id="matrix-shell">
     <table class="matrix" id="matrix"></table>
   </div>
-
-
 </div>
 
 <div id="tooltip"></div>
 
 <script>
 let UNITS = [];
+let LANGUAGES = [];
+let UPGRADE_TERMS = {};
+let unitsById = new Map();
+let currentLang = 0; // index into LANGUAGES/unit.names -- 0 is always English
+
+function unitName(u) {
+  return u.names[currentLang] || u.names[0];
+}
+
+function upgradeTermName(key) {
+  const names = UPGRADE_TERMS[key];
+  return names[currentLang] || names[0];
+}
+
+// Everything below is page UI text, not game data -- unlike unit names and
+// the four tech-upgrade button labels (from UPGRADE_TERMS, sourced straight
+// from the game's own BlueprintData strings), there's no in-game source for
+// "Fewer hits needed" or a tooltip's "vs baseline" -- these are our own
+// translations, not the game's.
+const UI_STRINGS = {
+  en: {
+    pageTitle: 'Mechabellum Hits-to-Kill Matrix',
+    subtitle: 'Shows the number of hits needed to kill each unit matchup, accounting for attack and HP upgrades.',
+    yourAttackUpgrades: 'Your attack upgrades',
+    opponentHpUpgrades: 'Opponent HP upgrades',
+    seniorAttackSpecialist: 'Senior Attack Specialist',
+    seniorDefenseSpecialist: 'Senior Defense Specialist',
+    requires: 'Requires {0}',
+    yourAtk: 'Your ATK:',
+    opponentHp: 'Opponent HP:',
+    fewerHitsNeeded: 'Fewer hits needed',
+    moreHitsNeeded: 'More hits needed',
+    cantTarget: "can't target",
+    attackerDefender: 'Attacker \\ Defender',
+    langSwitcherTitle: 'Unit name language',
+    hitsLabel: '{0} hits',
+    sameAsBaseline: 'same as baseline',
+    vsBaseline: '{0} vs baseline',
+    baseParen: '(base {0})',
+    atkVsHp: 'ATK {0} vs HP {1}',
+    overkillLine: 'Overkill: {0} dmg ({1}% of killing hit)',
+  },
+  'zh-CN': {
+    pageTitle: 'Mechabellum 击杀所需攻击次数矩阵',
+    subtitle: '显示每种单位对战所需的击杀次数，并计入攻击和生命值强化的影响。',
+    yourAttackUpgrades: '你的攻击强化',
+    opponentHpUpgrades: '对方生命值强化',
+    seniorAttackSpecialist: '高级攻击专家',
+    seniorDefenseSpecialist: '高级防御专家',
+    requires: '需要先获得{0}',
+    yourAtk: '你的攻击力：',
+    opponentHp: '对方生命值：',
+    fewerHitsNeeded: '所需攻击次数更少',
+    moreHitsNeeded: '所需攻击次数更多',
+    cantTarget: '无法攻击',
+    attackerDefender: '攻击方 \\ 防守方',
+    langSwitcherTitle: '单位名称语言',
+    hitsLabel: '{0} 次攻击',
+    sameAsBaseline: '与基准值相同',
+    vsBaseline: '较基准值 {0}',
+    baseParen: '（基准 {0}）',
+    atkVsHp: '攻击力 {0} 对 生命值 {1}',
+    overkillLine: '过量击杀：{0} 点伤害（占致命一击的 {1}%）',
+  },
+  ru: {
+    pageTitle: 'Mechabellum: матрица ударов до убийства',
+    subtitle: 'Показывает количество ударов, необходимых для уничтожения в каждом матчапе юнитов, с учётом усилений атаки и здоровья.',
+    yourAttackUpgrades: 'Ваши усиления атаки',
+    opponentHpUpgrades: 'Усиления здоровья противника',
+    seniorAttackSpecialist: 'Старший специалист по атаке',
+    seniorDefenseSpecialist: 'Старший специалист по защите',
+    requires: 'Требуется: {0}',
+    yourAtk: 'Ваш АТК:',
+    opponentHp: 'ОЗ противника:',
+    fewerHitsNeeded: 'Нужно меньше ударов',
+    moreHitsNeeded: 'Нужно больше ударов',
+    cantTarget: 'не может атаковать',
+    attackerDefender: 'Атакующий \\ Защитник',
+    langSwitcherTitle: 'Язык названий юнитов',
+    hitsLabel: '{0} уд.',
+    sameAsBaseline: 'как в базовом сценарии',
+    vsBaseline: '{0} к базовому',
+    baseParen: '(база {0})',
+    atkVsHp: 'АТК {0} против ОЗ {1}',
+    overkillLine: 'Избыточный урон: {0} (это {1}% от добивающего удара)',
+  },
+  fr: {
+    pageTitle: 'Mechabellum : matrice des coups pour tuer',
+    subtitle: "Indique le nombre de coups nécessaires pour tuer dans chaque confrontation d'unités, en tenant compte des améliorations d'attaque et de PV.",
+    yourAttackUpgrades: "Vos améliorations d'attaque",
+    opponentHpUpgrades: 'Améliorations de PV de l’adversaire',
+    seniorAttackSpecialist: "Spécialiste d'attaque senior",
+    seniorDefenseSpecialist: 'Spécialiste de défense senior',
+    requires: 'Nécessite {0}',
+    yourAtk: 'Votre ATT :',
+    opponentHp: 'PV adverses :',
+    fewerHitsNeeded: 'Moins de coups nécessaires',
+    moreHitsNeeded: 'Plus de coups nécessaires',
+    cantTarget: 'cible impossible',
+    attackerDefender: 'Attaquant \\ Défenseur',
+    langSwitcherTitle: "Langue des noms d'unités",
+    hitsLabel: '{0} coups',
+    sameAsBaseline: 'identique à la référence',
+    vsBaseline: '{0} par rapport à la référence',
+    baseParen: '(référence : {0})',
+    atkVsHp: 'ATT {0} contre PV {1}',
+    overkillLine: 'Surplus de dégâts : {0} (soit {1} % du coup fatal)',
+  },
+  de: {
+    pageTitle: 'Mechabellum: Trefferzahl-Matrix',
+    subtitle: 'Zeigt die Anzahl der Treffer, die für jedes Einheiten-Matchup zum Töten nötig sind, unter Berücksichtigung von Angriffs- und TP-Verstärkungen.',
+    yourAttackUpgrades: 'Deine Angriffsverstärkungen',
+    opponentHpUpgrades: 'TP-Verstärkungen des Gegners',
+    seniorAttackSpecialist: 'Leitender Angriffsspezialist',
+    seniorDefenseSpecialist: 'Leitender Verteidigungsspezialist',
+    requires: 'Erfordert {0}',
+    yourAtk: 'Dein ANG:',
+    opponentHp: 'Gegner-TP:',
+    fewerHitsNeeded: 'Weniger Treffer nötig',
+    moreHitsNeeded: 'Mehr Treffer nötig',
+    cantTarget: 'kann nicht anvisieren',
+    attackerDefender: 'Angreifer \\ Verteidiger',
+    langSwitcherTitle: 'Sprache der Einheitennamen',
+    hitsLabel: '{0} Treffer',
+    sameAsBaseline: 'wie im Ausgangswert',
+    vsBaseline: '{0} zum Ausgangswert',
+    baseParen: '(Basis {0})',
+    atkVsHp: 'ANG {0} gegen TP {1}',
+    overkillLine: 'Überschussschaden: {0} (das sind {1} % des tödlichen Treffers)',
+  },
+  'es-ES': {
+    pageTitle: 'Mechabellum: matriz de golpes para matar',
+    subtitle: 'Muestra el número de golpes necesarios para matar en cada enfrentamiento de unidades, teniendo en cuenta las mejoras de ataque y PV.',
+    yourAttackUpgrades: 'Tus mejoras de ataque',
+    opponentHpUpgrades: 'Mejoras de PV del rival',
+    seniorAttackSpecialist: 'Especialista superior en ataque',
+    seniorDefenseSpecialist: 'Especialista superior en defensa',
+    requires: 'Requiere {0}',
+    yourAtk: 'Tu ATQ:',
+    opponentHp: 'PV del rival:',
+    fewerHitsNeeded: 'Menos golpes necesarios',
+    moreHitsNeeded: 'Más golpes necesarios',
+    cantTarget: 'no puede atacar',
+    attackerDefender: 'Atacante \\ Defensor',
+    langSwitcherTitle: 'Idioma de los nombres de unidades',
+    hitsLabel: '{0} golpes',
+    sameAsBaseline: 'igual que la referencia',
+    vsBaseline: '{0} respecto a la referencia',
+    baseParen: '(base {0})',
+    atkVsHp: 'ATQ {0} frente a PV {1}',
+    overkillLine: 'Daño en exceso: {0} ({1} % del golpe letal)',
+  },
+  ko: {
+    pageTitle: 'Mechabellum 처치 필요 타격 횟수 매트릭스',
+    subtitle: '공격 및 HP 강화를 반영하여 각 유닛 매치업에서 처치에 필요한 타격 횟수를 표시합니다.',
+    yourAttackUpgrades: '내 공격 강화',
+    opponentHpUpgrades: '상대 HP 강화',
+    seniorAttackSpecialist: '수석 공격 전문가',
+    seniorDefenseSpecialist: '수석 방어 전문가',
+    requires: '{0} 필요',
+    yourAtk: '내 공격력:',
+    opponentHp: '상대 HP:',
+    fewerHitsNeeded: '필요 타격 횟수 감소',
+    moreHitsNeeded: '필요 타격 횟수 증가',
+    cantTarget: '공격 불가',
+    attackerDefender: '공격자 \\ 방어자',
+    langSwitcherTitle: '유닛 이름 언어',
+    hitsLabel: '{0}회 타격',
+    sameAsBaseline: '기준값과 동일',
+    vsBaseline: '기준값 대비 {0}',
+    baseParen: '(기준 {0})',
+    atkVsHp: '공격력 {0} vs HP {1}',
+    overkillLine: '오버킬: {0} 피해 (마지막 타격의 {1}%)',
+  },
+  ja: {
+    pageTitle: 'Mechabellum 撃破に必要な攻撃回数マトリクス',
+    subtitle: '攻撃力とHP強化を考慮した、各ユニットの対戦で撃破に必要な攻撃回数を表示します。',
+    yourAttackUpgrades: '自分の攻撃強化',
+    opponentHpUpgrades: '相手のHP強化',
+    seniorAttackSpecialist: '上級攻撃スペシャリスト',
+    seniorDefenseSpecialist: '上級防御スペシャリスト',
+    requires: '{0}が必要',
+    yourAtk: '自分の攻撃力:',
+    opponentHp: '相手のHP:',
+    fewerHitsNeeded: '必要な攻撃回数が少ない',
+    moreHitsNeeded: '必要な攻撃回数が多い',
+    cantTarget: '攻撃不可',
+    attackerDefender: '攻撃側 \\ 防御側',
+    langSwitcherTitle: 'ユニット名の言語',
+    hitsLabel: '{0}回攻撃',
+    sameAsBaseline: '基準値と同じ',
+    vsBaseline: '基準値との差 {0}',
+    baseParen: '（基準 {0}）',
+    atkVsHp: '攻撃力{0} vs HP{1}',
+    overkillLine: 'オーバーキル：{0}ダメージ（とどめの一撃の{1}%）',
+  },
+  'zh-TW': {
+    pageTitle: 'Mechabellum 擊殺所需攻擊次數矩陣',
+    subtitle: '顯示每種單位對戰所需的擊殺次數，並計入攻擊與生命值強化的影響。',
+    yourAttackUpgrades: '你的攻擊強化',
+    opponentHpUpgrades: '對方生命值強化',
+    seniorAttackSpecialist: '高級攻擊專家',
+    seniorDefenseSpecialist: '高級防禦專家',
+    requires: '需要先取得{0}',
+    yourAtk: '你的攻擊力：',
+    opponentHp: '對方生命值：',
+    fewerHitsNeeded: '所需攻擊次數更少',
+    moreHitsNeeded: '所需攻擊次數更多',
+    cantTarget: '無法攻擊',
+    attackerDefender: '攻擊方 \\ 防守方',
+    langSwitcherTitle: '單位名稱語言',
+    hitsLabel: '{0} 次攻擊',
+    sameAsBaseline: '與基準值相同',
+    vsBaseline: '較基準值 {0}',
+    baseParen: '（基準 {0}）',
+    atkVsHp: '攻擊力 {0} 對 生命值 {1}',
+    overkillLine: '過量擊殺：{0} 點傷害（佔致命一擊的 {1}%）',
+  },
+  'es-US': {
+    pageTitle: 'Mechabellum: matriz de golpes para eliminar',
+    subtitle: 'Muestra la cantidad de golpes necesarios para eliminar en cada enfrentamiento de unidades, considerando las mejoras de ataque y PV.',
+    yourAttackUpgrades: 'Tus mejoras de ataque',
+    opponentHpUpgrades: 'Mejoras de PV del rival',
+    seniorAttackSpecialist: 'Especialista superior en ataque',
+    seniorDefenseSpecialist: 'Especialista superior en defensa',
+    requires: 'Requiere {0}',
+    yourAtk: 'Tu ATQ:',
+    opponentHp: 'PV del rival:',
+    fewerHitsNeeded: 'Menos golpes necesarios',
+    moreHitsNeeded: 'Más golpes necesarios',
+    cantTarget: 'no puede atacar',
+    attackerDefender: 'Atacante \\ Defensor',
+    langSwitcherTitle: 'Idioma de los nombres de unidades',
+    hitsLabel: '{0} golpes',
+    sameAsBaseline: 'igual que la referencia',
+    vsBaseline: '{0} respecto a la referencia',
+    baseParen: '(base {0})',
+    atkVsHp: 'ATQ {0} frente a PV {1}',
+    overkillLine: 'Daño en exceso: {0} ({1}% del golpe letal)',
+  },
+  pl: {
+    pageTitle: 'Mechabellum: macierz trafień do zabicia',
+    subtitle: 'Pokazuje liczbę trafień potrzebnych do zabicia w każdym starciu jednostek, uwzględniając wzmocnienia ataku i PW.',
+    yourAttackUpgrades: 'Twoje wzmocnienia ataku',
+    opponentHpUpgrades: 'Wzmocnienia PW przeciwnika',
+    seniorAttackSpecialist: 'Starszy specjalista ds. ataku',
+    seniorDefenseSpecialist: 'Starszy specjalista ds. obrony',
+    requires: 'Wymaga: {0}',
+    yourAtk: 'Twój ATK:',
+    opponentHp: 'PW przeciwnika:',
+    fewerHitsNeeded: 'Potrzeba mniej trafień',
+    moreHitsNeeded: 'Potrzeba więcej trafień',
+    cantTarget: 'brak celu',
+    attackerDefender: 'Atakujący \\ Broniący',
+    langSwitcherTitle: 'Język nazw jednostek',
+    hitsLabel: '{0} traf.',
+    sameAsBaseline: 'tak samo jak bazowo',
+    vsBaseline: '{0} względem bazowego',
+    baseParen: '(baza {0})',
+    atkVsHp: 'ATK {0} vs PW {1}',
+    overkillLine: 'Nadmiarowe obrażenia: {0} ({1}% ciosu dobijającego)',
+  },
+};
+
+function t(key, ...args) {
+  const code = LANGUAGES[currentLang] ? LANGUAGES[currentLang].code : 'en';
+  const dict = UI_STRINGS[code] || UI_STRINGS.en;
+  let str = dict[key] || UI_STRINGS.en[key] || key;
+  args.forEach((a, i) => { str = str.replace(`{${i}}`, a); });
+  return str;
+}
 
 const BONUS = { atk1: 0.12, atk2: 0.24, specAtk: 0.30, hp1: 0.15, hp2: 0.30, specHp: 0.30 };
 const REL_SCALE_CAP = 0.5; // relative delta magnitude that maps to full color intensity
@@ -252,15 +535,19 @@ function currentVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function buildTable() {
   const table = document.getElementById('matrix');
-  let html = '<thead><tr><th class="corner">Attacker \\ Defender</th>';
+  let html = `<thead><tr><th class="corner">${escapeHtml(t('attackerDefender'))}</th>`;
   for (const d of UNITS) {
-    html += `<th class="col-head" data-col="${d.id}"><span>${d.name}</span></th>`;
+    html += `<th class="col-head" data-col="${d.id}"><span>${escapeHtml(unitName(d))}</span></th>`;
   }
   html += '</tr></thead><tbody>';
   for (const a of UNITS) {
-    html += `<tr data-row="${a.id}"><th class="row-head" data-row="${a.id}">${a.name}</th>`;
+    html += `<tr data-row="${a.id}"><th class="row-head" data-row="${a.id}">${escapeHtml(unitName(a))}</th>`;
     for (const d of UNITS) {
       html += `<td class="cell" data-row="${a.id}" data-col="${d.id}"></td>`;
     }
@@ -315,12 +602,45 @@ function render() {
       const overkillPct = (overkill / effAtk) * 100;
 
       cell.dataset.tt = JSON.stringify({
-        attacker: a.name, defender: d.name, hits, base, delta,
+        aId: a.id, dId: d.id, hits, base, delta,
         effAtk: Math.round(effAtk * 10) / 10, effHp: Math.round(effHp * 10) / 10,
         overkill: Math.round(overkill * 10) / 10, overkillPct: Math.round(overkillPct * 10) / 10,
       });
     }
   }
+}
+
+const UPGRADE_BUTTON_LABELS = { atk1: 'atk1', atk2: 'atk2', specAtk: null, hp1: 'hp1', hp2: 'hp2', specHp: null };
+const UPGRADE_BUTTON_PCT = { atk1: 12, atk2: 24, specAtk: 30, hp1: 15, hp2: 30, specHp: 30 };
+const UPGRADE_BUTTON_PREREQ = { atk2: 'atk1', hp2: 'hp1' };
+
+function applyUIStrings() {
+  document.documentElement.lang = LANGUAGES[currentLang].code;
+  document.title = t('pageTitle');
+  document.getElementById('page-title').textContent = t('pageTitle');
+  document.getElementById('subtitle').textContent = t('subtitle');
+  document.getElementById('heading-atk').textContent = t('yourAttackUpgrades');
+  document.getElementById('heading-hp').textContent = t('opponentHpUpgrades');
+  document.getElementById('label-your-atk').textContent = t('yourAtk');
+  document.getElementById('label-opponent-hp').textContent = t('opponentHp');
+  document.getElementById('legend-fewer').textContent = t('fewerHitsNeeded');
+  document.getElementById('legend-more').textContent = t('moreHitsNeeded');
+  document.getElementById('legend-na').textContent = t('cantTarget');
+  document.getElementById('lang-switcher').title = t('langSwitcherTitle');
+
+  document.querySelectorAll('button.toggle').forEach((btn) => {
+    const key = btn.dataset.upg;
+    const termKey = UPGRADE_BUTTON_LABELS[key];
+    const name = termKey ? upgradeTermName(termKey)
+      : (key === 'specAtk' ? t('seniorAttackSpecialist') : t('seniorDefenseSpecialist'));
+    btn.textContent = `${name} (+${UPGRADE_BUTTON_PCT[key]}%)`;
+    const prereq = UPGRADE_BUTTON_PREREQ[key];
+    if (prereq) {
+      btn.title = t('requires', upgradeTermName(UPGRADE_BUTTON_LABELS[prereq]));
+    } else {
+      btn.removeAttribute('title');
+    }
+  });
 }
 
 function initToggles() {
@@ -341,23 +661,23 @@ function initTooltip() {
 
     if (!cell.dataset.tt) { tt.style.display = 'none'; return; }
     const d = JSON.parse(cell.dataset.tt);
-    const deltaStr = d.delta === 0 ? 'same as baseline' : (d.delta > 0 ? `+${d.delta} vs baseline` : `${d.delta} vs baseline`);
+    const deltaStr = d.delta === 0 ? t('sameAsBaseline') : t('vsBaseline', d.delta > 0 ? `+${d.delta}` : d.delta);
     tt.innerHTML = '';
     const title = document.createElement('div');
     title.className = 'tt-title';
-    title.textContent = `${d.attacker} → ${d.defender}`;
+    title.textContent = `${unitName(unitsById.get(d.aId))} → ${unitName(unitsById.get(d.dId))}`;
     const value = document.createElement('div');
     value.className = 'tt-value';
-    value.textContent = `${d.hits.toLocaleString()} hits`;
+    value.textContent = t('hitsLabel', d.hits.toLocaleString());
     const deltaRow = document.createElement('div');
     deltaRow.className = 'tt-row';
-    deltaRow.textContent = `${deltaStr} (base ${d.base.toLocaleString()})`;
+    deltaRow.textContent = `${deltaStr} ${t('baseParen', d.base.toLocaleString())}`;
     const statsRow = document.createElement('div');
     statsRow.className = 'tt-row';
-    statsRow.textContent = `ATK ${d.effAtk.toLocaleString()} vs HP ${d.effHp.toLocaleString()}`;
+    statsRow.textContent = t('atkVsHp', d.effAtk.toLocaleString(), d.effHp.toLocaleString());
     const overkillRow = document.createElement('div');
     overkillRow.className = 'tt-row';
-    overkillRow.textContent = `Overkill: ${d.overkill.toLocaleString()} dmg (${d.overkillPct}% of killing hit)`;
+    overkillRow.textContent = t('overkillLine', d.overkill.toLocaleString(), d.overkillPct);
     tt.append(title, value, deltaRow, statsRow, overkillRow);
     tt.style.display = 'block';
   });
@@ -380,11 +700,68 @@ function initTooltip() {
   });
 }
 
+// Matches a browser locale (e.g. "zh-TW", "es-MX", "pt") against the
+// game's 11 languages, which is a coarser set than BCP-47 -- most codes
+// match on base language alone, but Chinese and Spanish each have two
+// regional variants in the game's list, so those need a region rule
+// rather than a plain base-language match.
+function matchLanguage(locale) {
+  const lower = locale.toLowerCase();
+  const [base, region] = lower.split('-');
+  const byCode = (code) => LANGUAGES.findIndex((l) => l.code.toLowerCase() === code);
+
+  let idx = byCode(lower);
+  if (idx !== -1) return idx;
+
+  if (base === 'zh') return byCode(region === 'tw' || region === 'hk' || region === 'mo' ? 'zh-tw' : 'zh-cn');
+  if (base === 'es') return byCode(region === 'es' ? 'es-es' : 'es-us');
+
+  return LANGUAGES.findIndex((l) => l.code.toLowerCase().split('-')[0] === base);
+}
+
+function detectLanguageIndex() {
+  const prefs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'en'];
+  for (const pref of prefs) {
+    const idx = matchLanguage(pref);
+    if (idx !== -1) return idx;
+  }
+  return 0; // English
+}
+
+function initLanguageSelect() {
+  const select = document.getElementById('lang-select');
+  select.innerHTML = LANGUAGES.map((l, i) => `<option value="${i}">${escapeHtml(l.name)}</option>`).join('');
+
+  let saved = null;
+  try {
+    const code = localStorage.getItem('mechabellum-lang');
+    if (code) {
+      const idx = LANGUAGES.findIndex((l) => l.code === code);
+      if (idx !== -1) saved = idx;
+    }
+  } catch (err) { /* localStorage unavailable (private browsing, etc.) */ }
+
+  currentLang = saved !== null ? saved : detectLanguageIndex();
+  select.value = String(currentLang);
+
+  select.addEventListener('change', () => {
+    currentLang = Number(select.value);
+    try { localStorage.setItem('mechabellum-lang', LANGUAGES[currentLang].code); } catch (err) { /* ignore */ }
+    applyUIStrings();
+    buildTable();
+    render();
+  });
+}
+
 async function init() {
   try {
     const res = await fetch('units_data.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    UNITS = await res.json();
+    const data = await res.json();
+    LANGUAGES = data.languages;
+    UNITS = data.units;
+    UPGRADE_TERMS = data.upgradeTerms;
+    unitsById = new Map(UNITS.map((u) => [u.id, u]));
   } catch (err) {
     document.getElementById('matrix-shell').innerHTML =
       '<p style="padding:24px;max-width:60ch;color:var(--text-secondary)">' +
@@ -394,6 +771,8 @@ async function init() {
       '<code>http://localhost:8000/</code>. This works normally once hosted on GitHub Pages.</p>';
     return;
   }
+  initLanguageSelect();
+  applyUIStrings();
   buildTable();
   render();
   initToggles();
