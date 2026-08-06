@@ -1,55 +1,17 @@
 """
-Extract Mechabellum unit stats directly from the installed game files into a CSV.
+Extract Mechabellum unit stats from the installed game into units_data.json.
 
-How it works
-------------
-Mechabellum is a Unity/IL2CPP game. Unit balance data (HP, ATK, speed, range,
-attack interval, cost, ...) lives inside two big MonoBehaviour assets baked
-into the boot scene (`level0`):
-
-  - GameRiver.ConfigDataContainer   -> cardDatas (cost) + mechDatas (HP/ATK/speed/...)
-  - GameRiver.MechSkillGroupData    -> skillDatas / projectileSkillDatas / ... (range,
-                                        attack interval, splash range, ground/air targeting)
-
-Because the game ships IL2CPP-compiled code, Unity's usual "TypeTree" (the
-schema that says which bytes mean which field) isn't stored in the data
-files themselves. We reconstruct it at runtime from the game's own compiled
-binary (`GameAssembly.dylib`) + `global-metadata.dat` using
-`TypeTreeGeneratorAPI`, then use that to parse the actual asset bytes with
-UnityPy. This means the script keeps working across balance patches and new
-units without any manual re-mapping -- as long as the *shape* of these
-classes doesn't change, which is exactly what would also break if we'd
-hand-picked byte offsets.
-
-Unit/card English names come from the game's I2 Localization data
-(`I2LanguagesForConfigData`), looked up by term key (e.g.
-"ConfigData/MechData/name_10").
-
-Not every CardData entry is a normal, directly-deployable roster unit --
-there are Tech Tree "Experimental" upgrade cards, combat-spawned sub-units
-(Larva, Spider Mine), and a couple of special/internal cards (Supply Ship,
-Death Knell's two variants). The game itself flags these via
-CardData.specialUnit / isTestUnit, which we surface directly as
-`special_unit` / `test_unit` columns (plus a derived `category` label; see
-special_unit_category / SPECIAL_UNIT_CATEGORY below) rather than guessing
-from names or IDs. The standard roster is specialUnit == 0 and
-test_unit == False.
-
-For the standard roster, unlock-cost tier (`group`, 1-4) and deployment
-footprint (`slot_size`) both track unit "size" as players experience it
-much better than the combat mechType class does -- group 4 (unlock cost
-350) is the real "Titan" tier (War Factory, Mountain, Abyss), distinct from
-the `specialUnit == 1` rotating-bonus-pick mechanic which also happens to
-use the word "Titan" in its own flavor text. See the comment on
-SPECIAL_UNIT_CATEGORY for the full explanation.
+See NOTES.md for the game-mechanic details this relies on (why some units
+appear twice, what "Titan" means in two different senses, the damage-ramp
+table, etc.) and the comments in this file for the extraction mechanics
+themselves (IL2CPP schema reconstruction, binary layout, ...).
 
 Usage
 -----
-    uv run python extract_unit_stats.py [--game-root PATH] [--out FILE.csv] [--standard-only]
+    uv run python extract_unit_stats.py [--game-root PATH] [--out units_data.json]
 """
 
 import argparse
-import csv
 import json
 import os
 import struct
@@ -63,11 +25,11 @@ from UnityPy.helpers.TypeTreeNode import TypeTreeNode
 
 # UnityPy's compiled ("boost") typetree reader is stricter about node
 # metadata than we can reliably reproduce from a freshly generated
-# TypeTree (see fix_sizes below), so we use the pure-Python reader.
+# TypeTree (see fix_node_sizes below), so we use the pure-Python reader.
 TypeTreeHelper.read_typetree_boost = None
 
-DEFAULT_GAME_ROOT = (
-    "/Users/magnusjason/Library/Application Support/Steam/steamapps/common/Mechabellum"
+DEFAULT_GAME_ROOT = os.path.expanduser(
+    "~/Library/Application Support/Steam/steamapps/common/Mechabellum"
 )
 
 PRIMITIVE_SIZES = {
@@ -77,32 +39,11 @@ PRIMITIVE_SIZES = {
     "SInt64": 8, "UInt64": 8, "long": 8, "unsigned long": 8, "double": 8, "long long": 8,
 }
 
-# mechType: the unit's COMBAT size class (affects targeting/splash rules,
-# per MechData.mechType) -- this is a different axis from the roster's
-# unlock-cost size tier (see `group` in the CSV output) and does not track
-# it cleanly, e.g. group-1 units span both Small and Medium mechType.
 UNIT_TYPE_NAMES = {0: "Small", 1: "Medium", 2: "Huge"}
 MOVE_TYPE_NAMES = {0: "Normal", 1: "Underground", 2: "Cloak"}
 
-# CardData.specialUnit isn't a named C# enum (no symbol names survive in the
-# metadata for it), but "Experimental" IS the game's own terminology --
-# found via its localization strings, not guessed:
-#   1: cards that stand in for a normal group slot via a separate rotating
-#      bonus-pick mechanic rather than a permanent roster spot (e.g. Death
-#      Knell, which is why it appears twice: once as the base card, once as
-#      its Experimental upgrade). Their card subtitles do say "Titan" (e.g.
-#      "High Damage Titan") -- but don't confuse that with the CSV's
-#      `group == 4` unlock-cost tier below, which is a *different* "Titan"
-#      concept: the permanent, most-expensive roster slot (War Factory,
-#      Mountain, Abyss are all `specialUnit == 0`, standard roster units).
-#   2: the game has a real "Experimental Unit" buff/name string (试验级单位)
-#      applied to Tech Tree upgrade units, all of which carry this flag.
-#      A couple of unused/internal cards (e.g. Supply Ship) share the flag
-#      without actually being Experimental-branded in their own text.
-#   3: no in-game term found for this one -- "Combat-spawned" is our own
-#      descriptive label for units that only appear as another unit's
-#      spawned offspring (Larva, Spider Mine), never directly deployable.
-#   0: the normal deployable roster (no special-case label needed).
+# See NOTES.md "Non-standard cards" for what these mean and how they were
+# confirmed (two are the game's own terminology, two are ours).
 SPECIAL_UNIT_CATEGORY = {
     0: "Standard",
     1: "Rotating bonus-pick",
@@ -110,12 +51,12 @@ SPECIAL_UNIT_CATEGORY = {
     3: "Combat-spawned",
 }
 
-
 def special_unit_category(special_unit):
     """Human-readable label for a raw CardData.specialUnit value."""
     if special_unit is None:
         return "Unknown (no card data)"
     return SPECIAL_UNIT_CATEGORY.get(special_unit, f"Unknown ({special_unit})")
+
 
 # All SkillData subclasses that can be a unit's mainSkillID. They all share
 # SkillData's base fields (attackRange, attackDuration, splashRange, ...).
@@ -124,6 +65,24 @@ SKILL_LIST_FIELDS = [
     "controllBeamSkillDatas", "rocketPunchSkillDatas", "explosionSkillDatas",
     "supportSkillDatas", "sweepSkillDatas", "trapSkillDatas",
 ]
+
+# The four tech-tree upgrade cards the companion page models, as
+# GameRiver.BlueprintData term keys -- see NOTES.md "Upgrade button text".
+UPGRADE_TERM_KEYS = {
+    "atk1": "ConfigData/BlueprintData/name_4",
+    "atk2": "ConfigData/BlueprintData/name_401",
+    "hp1": "ConfigData/BlueprintData/name_5",
+    "hp2": "ConfigData/BlueprintData/name_501",
+}
+
+# Native-language display names for the language picker -- see NOTES.md
+# "Language picker labels".
+LANGUAGE_SELF_TERM = {
+    "en": "Language/English", "ru": "Language/Russian", "fr": "Language/French",
+    "de": "Language/German", "ko": "Language/Korean", "ja": "Language/Japanese",
+    "pl": "Language/Polish", "es-ES": "Language/Spanish", "es-US": "Language/Spanish",
+}
+SPANISH_REGION_SUFFIX = {"es-ES": " (España)", "es-US": " (Latinoamérica)"}
 
 
 def fixed_point(value):
@@ -284,13 +243,6 @@ def get_localized_names(resources_assets_bytes, term_key):
     return names
 
 
-def get_localized_name(resources_assets_bytes, term_key, lang_index=0):
-    names = get_localized_names(resources_assets_bytes, term_key)
-    if names is None or not (0 <= lang_index < len(names)):
-        return None
-    return names[lang_index]
-
-
 def find_language_list(resources_assets_bytes):
     """The game's I2 Localization language list (name + code, in the same
     fixed order get_localized_names returns translations in), read from the
@@ -323,14 +275,37 @@ def find_language_list(resources_assets_bytes):
     return languages
 
 
+def resolve_native_language_names(languages, resources_assets_bytes):
+    """Replace find_language_list's English label for each language (e.g.
+    "Russian") with what that language calls itself (e.g. "Русский"), for
+    the page's language picker. See NOTES.md "Language picker labels"."""
+    for i, lang in enumerate(languages):
+        code = lang["code"]
+        if code in ("zh-CN", "zh-TW"):
+            continue  # already a proper native name (简体中文 / 繁体中文)
+        term_key = LANGUAGE_SELF_TERM.get(code)
+        if term_key is None:
+            continue
+        names = get_localized_names(resources_assets_bytes, term_key)
+        if names is None or i >= len(names):
+            continue
+        lang["name"] = names[i] + SPANISH_REGION_SUFFIX.get(code, "")
+    return languages
+
+
+def unit_sort_key(unit):
+    """The game's own unlock/modification-screen order (CardData.sort) --
+    unique and total for the standard roster. Non-standard cards
+    (Experimental/spawned/rotating) all share sort == 0, since they aren't
+    slotted into that progression; for those, fall back to cost then id."""
+    sort = unit["sort"] or 0
+    return (sort, unit["cost"] or 0, unit["id"])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--game-root", default=DEFAULT_GAME_ROOT, help="Path to the Mechabellum install directory")
-    parser.add_argument("--out", default="mechabellum_units.csv", help="Output CSV path")
-    parser.add_argument(
-        "--standard-only", action="store_true",
-        help="Only include standard, directly-deployable roster units (drop Experimental/spawned/special cards)",
-    )
+    parser.add_argument("--out", default="units_data.json", help="Output JSON path")
     args = parser.parse_args()
 
     game_root = args.game_root
@@ -391,20 +366,35 @@ def main():
             skills_by_id[s["id"]] = s
     print(f"  -> {len(skills_by_id)} total skills across {len(SKILL_LIST_FIELDS)} skill types", file=sys.stderr)
 
-    print("Loading localization data for unit names...", file=sys.stderr)
+    print("Loading localization data...", file=sys.stderr)
     with open(os.path.join(data_dir(game_root), "resources.assets"), "rb") as f:
         resources_bytes = f.read()
+    languages = resolve_native_language_names(find_language_list(resources_bytes), resources_bytes)
+    num_langs = len(languages)
 
-    rows = []
-    for m in cdc["mechDatas"]:
+    # See NOTES.md "Damage ramp" -- a few laser-type weapons deal a small
+    # fraction of ATK on the first hit against a target and ramp up per
+    # consecutive hit via this fixed lookup table, capping once it's
+    # exhausted. This is the game's own table, not a fitted curve.
+    def ramp_multipliers(skill):
+        dm = skill.get("damageMultiplier") if skill else None
+        if not dm:
+            return None
+        try:
+            values = [fixed_point(x) for x in dm]
+        except (TypeError, KeyError):
+            return None  # a same-named field on a non-laser skill subtype, not an FPoint[]
+        return values if len(set(values)) > 1 else None
+
+    units = []
+    for m in mech_datas:
         mech_id = m["id"]
         card = card_by_mech_id.get(mech_id)
         skill = skills_by_id.get(m["mainSkillID"])
 
-        name = get_localized_name(resources_bytes, f"ConfigData/MechData/name_{mech_id}") or m.get("name")
-        special_unit = card["specialUnit"] if card else None
-        test_unit = bool(card["isTestUnit"]) if card else None
-        category = special_unit_category(special_unit)
+        names = get_localized_names(resources_bytes, f"ConfigData/MechData/name_{mech_id}")
+        if names is None or len(names) != num_langs:
+            names = [m.get("name")] * num_langs  # fall back to the raw (Chinese) name for every locale
 
         can_ground = bool(skill["canAttackGround"]) if skill else None
         can_air = bool(skill["canAttackAir"]) if skill else None
@@ -419,53 +409,60 @@ def main():
         else:
             target = "None"
 
-        rows.append({
+        units.append({
             "id": mech_id,
-            "name": name,
-            "special_unit": special_unit,
-            "test_unit": test_unit,
-            "category": category,
+            "names": names,
+            "specialUnit": card["specialUnit"] if card else None,
+            "testUnit": bool(card["isTestUnit"]) if card else None,
+            "category": special_unit_category(card["specialUnit"] if card else None),
             "cost": card["baseMoney"] if card else None,
             "hp": m["life"],
             "atk": m["damage"],
-            "speed_mps": m["moveSpeed"],
-            "range_m": fixed_point(skill["attackRange"]) if skill else None,
-            "attack_interval_s": fixed_point(skill["attackDuration"]) if skill else None,
-            "splash_range_m": fixed_point(skill["splashRange"]) if skill else None,
+            "speedMps": m["moveSpeed"],
+            "rangeM": fixed_point(skill["attackRange"]) if skill else None,
+            "attackInterval": fixed_point(skill["attackDuration"]) if skill else None,
+            "splashRangeM": fixed_point(skill["splashRange"]) if skill else None,
             "target": target,
             "flying": bool(m["isFly"]),
-            "combat_size": UNIT_TYPE_NAMES.get(m["mechType"], m["mechType"]),
-            "move_type": MOVE_TYPE_NAMES.get(m["moveType"], m["moveType"]),
-            "units_per_card": card["mechCount"] if card else None,
+            "rampMultipliers": ramp_multipliers(skill),
+            "combatSize": UNIT_TYPE_NAMES.get(m["mechType"], m["mechType"]),
+            "moveType": MOVE_TYPE_NAMES.get(m["moveType"], m["moveType"]),
+            "unitsPerCard": card["mechCount"] if card else None,
             # Unlock-cost tier: 1-4 for standard roster cards (correlates
             # with size -- 1=free tier, 2=intermediate, 3=Giant, 4=Titan),
             # 0 for non-standard cards (Experimental/spawned/rotating --
             # these aren't slotted into the group progression).
             "group": card["group"] if card else None,
-            "unlock_price": card["unlockPrice"] if card else None,
+            "unlockPrice": card["unlockPrice"] if card else None,
+            # The game's own sort key for the unit unlock/modification
+            # screens -- see unit_sort_key.
+            "sort": card["sort"] if card else None,
             # Deployment footprint size. Not officially documented, but it
             # scales cleanly with cost/group (e.g. 6-8 for the cheapest
             # units, up to 70 for Titans), which is the closest thing to a
             # "tile count" figure in the data.
-            "slot_size": card["slotSize"] if card else None,
+            "slotSize": card["slotSize"] if card else None,
             # Card portrait/UI dimensions, NOT a battlefield footprint --
             # these are Vector2 sizes for how big the card graphic renders
             # in menus, kept here for completeness.
-            "card_width": fixed_point(card["cardBaseSize"]["x"]) if card else None,
-            "card_height": fixed_point(card["cardBaseSize"]["y"]) if card else None,
+            "cardWidth": fixed_point(card["cardBaseSize"]["x"]) if card else None,
+            "cardHeight": fixed_point(card["cardBaseSize"]["y"]) if card else None,
         })
 
-    if args.standard_only:
-        rows = [r for r in rows if r["special_unit"] == 0 and not r["test_unit"]]
+    units.sort(key=unit_sort_key)
 
-    rows.sort(key=lambda r: r["id"])
+    upgrade_terms = {}
+    for key, term_key in UPGRADE_TERM_KEYS.items():
+        names = get_localized_names(resources_bytes, term_key)
+        if names is None or len(names) != num_langs:
+            raise LookupError(f"couldn't resolve {term_key!r} in every language")
+        upgrade_terms[key] = names
 
-    with open(args.out, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
+    payload = {"languages": languages, "upgradeTerms": upgrade_terms, "units": units}
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
 
-    print(f"Wrote {len(rows)} units to {args.out}", file=sys.stderr)
+    print(f"Wrote {len(units)} units in {num_langs} languages to {args.out}", file=sys.stderr)
 
 
 if __name__ == "__main__":

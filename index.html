@@ -89,6 +89,12 @@
   button.toggle:hover { border-color: var(--text-secondary); }
   button.toggle[aria-pressed="true"].atk { background: var(--good-pole); border-color: var(--good-pole); color: #fff; }
   button.toggle[aria-pressed="true"].hp { background: var(--bad-pole); border-color: var(--bad-pole); color: #fff; }
+  button.toggle[aria-pressed="true"].mode { background: var(--text-primary); border-color: var(--text-primary); color: var(--surface-1); }
+
+  .mode-switch { display: inline-flex; }
+  .mode-switch button.toggle { border-radius: 0; }
+  .mode-switch button.toggle:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+  .mode-switch button.toggle:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; margin-left: -1px; }
 
   .summary { margin-left: auto; text-align: right; font-size: 0.85rem; color: var(--text-secondary); }
   .summary strong { color: var(--text-primary); }
@@ -186,6 +192,13 @@
         <button class="toggle hp" data-upg="specHp" aria-pressed="false"></button>
       </div>
     </div>
+    <div class="control-group">
+      <h2 id="heading-cell-value"></h2>
+      <div class="mode-switch">
+        <button class="toggle mode" data-mode="hits" aria-pressed="true"></button>
+        <button class="toggle mode" data-mode="time" aria-pressed="false"></button>
+      </div>
+    </div>
     <div class="summary">
       <span id="label-your-atk"></span> <strong id="atk-pct">+0%</strong><br>
       <span id="label-opponent-hp"></span> <strong id="hp-pct">+0%</strong>
@@ -240,6 +253,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: 'Opponent HP upgrades',
     seniorAttackSpecialist: 'Senior Attack Specialist',
     seniorDefenseSpecialist: 'Senior Defense Specialist',
+    cellValueLabel: 'Cell value',
+    showHits: 'Hits',
+    showTime: 'Time',
     requires: 'Requires {0}',
     yourAtk: 'Your ATK:',
     opponentHp: 'Opponent HP:',
@@ -254,6 +270,7 @@ const UI_STRINGS = {
     baseParen: '(base {0})',
     atkVsHp: 'ATK {0} vs HP {1}',
     overkillLine: 'Overkill: {0} dmg ({1}% of killing hit)',
+    timeToKillLine: 'Time to kill: {0}',
   },
   'zh-CN': {
     pageTitle: 'Mechabellum 击杀所需攻击次数矩阵',
@@ -262,6 +279,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: '对方生命值强化',
     seniorAttackSpecialist: '高级攻击专家',
     seniorDefenseSpecialist: '高级防御专家',
+    cellValueLabel: '单元格数值',
+    showHits: '攻击次数',
+    showTime: '耗时',
     requires: '需要先获得{0}',
     yourAtk: '你的攻击力：',
     opponentHp: '对方生命值：',
@@ -276,6 +296,7 @@ const UI_STRINGS = {
     baseParen: '（基准 {0}）',
     atkVsHp: '攻击力 {0} 对 生命值 {1}',
     overkillLine: '过量击杀：{0} 点伤害（占致命一击的 {1}%）',
+    timeToKillLine: '击杀耗时：{0}',
   },
   ru: {
     pageTitle: 'Mechabellum: матрица ударов до убийства',
@@ -284,6 +305,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: 'Усиления здоровья противника',
     seniorAttackSpecialist: 'Старший специалист по атаке',
     seniorDefenseSpecialist: 'Старший специалист по защите',
+    cellValueLabel: 'Значение в ячейке',
+    showHits: 'Удары',
+    showTime: 'Время',
     requires: 'Требуется: {0}',
     yourAtk: 'Ваш АТК:',
     opponentHp: 'ОЗ противника:',
@@ -298,6 +322,7 @@ const UI_STRINGS = {
     baseParen: '(база {0})',
     atkVsHp: 'АТК {0} против ОЗ {1}',
     overkillLine: 'Избыточный урон: {0} (это {1}% от добивающего удара)',
+    timeToKillLine: 'Время на убийство: {0}',
   },
   fr: {
     pageTitle: 'Mechabellum : matrice des coups pour tuer',
@@ -306,6 +331,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: 'Améliorations de PV de l’adversaire',
     seniorAttackSpecialist: "Spécialiste d'attaque senior",
     seniorDefenseSpecialist: 'Spécialiste de défense senior',
+    cellValueLabel: 'Valeur des cellules',
+    showHits: 'Coups',
+    showTime: 'Temps',
     requires: 'Nécessite {0}',
     yourAtk: 'Votre ATT :',
     opponentHp: 'PV adverses :',
@@ -320,6 +348,7 @@ const UI_STRINGS = {
     baseParen: '(référence : {0})',
     atkVsHp: 'ATT {0} contre PV {1}',
     overkillLine: 'Surplus de dégâts : {0} (soit {1} % du coup fatal)',
+    timeToKillLine: 'Temps pour tuer : {0}',
   },
   de: {
     pageTitle: 'Mechabellum: Trefferzahl-Matrix',
@@ -328,6 +357,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: 'TP-Verstärkungen des Gegners',
     seniorAttackSpecialist: 'Leitender Angriffsspezialist',
     seniorDefenseSpecialist: 'Leitender Verteidigungsspezialist',
+    cellValueLabel: 'Zellenwert',
+    showHits: 'Treffer',
+    showTime: 'Zeit',
     requires: 'Erfordert {0}',
     yourAtk: 'Dein ANG:',
     opponentHp: 'Gegner-TP:',
@@ -342,6 +374,7 @@ const UI_STRINGS = {
     baseParen: '(Basis {0})',
     atkVsHp: 'ANG {0} gegen TP {1}',
     overkillLine: 'Überschussschaden: {0} (das sind {1} % des tödlichen Treffers)',
+    timeToKillLine: 'Zeit bis zum Tod: {0}',
   },
   'es-ES': {
     pageTitle: 'Mechabellum: matriz de golpes para matar',
@@ -350,6 +383,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: 'Mejoras de PV del rival',
     seniorAttackSpecialist: 'Especialista superior en ataque',
     seniorDefenseSpecialist: 'Especialista superior en defensa',
+    cellValueLabel: 'Valor de la celda',
+    showHits: 'Golpes',
+    showTime: 'Tiempo',
     requires: 'Requiere {0}',
     yourAtk: 'Tu ATQ:',
     opponentHp: 'PV del rival:',
@@ -364,6 +400,7 @@ const UI_STRINGS = {
     baseParen: '(base {0})',
     atkVsHp: 'ATQ {0} frente a PV {1}',
     overkillLine: 'Daño en exceso: {0} ({1} % del golpe letal)',
+    timeToKillLine: 'Tiempo para matar: {0}',
   },
   ko: {
     pageTitle: 'Mechabellum 처치 필요 타격 횟수 매트릭스',
@@ -372,6 +409,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: '상대 HP 강화',
     seniorAttackSpecialist: '수석 공격 전문가',
     seniorDefenseSpecialist: '수석 방어 전문가',
+    cellValueLabel: '셀 값',
+    showHits: '타격 횟수',
+    showTime: '시간',
     requires: '{0} 필요',
     yourAtk: '내 공격력:',
     opponentHp: '상대 HP:',
@@ -386,6 +426,7 @@ const UI_STRINGS = {
     baseParen: '(기준 {0})',
     atkVsHp: '공격력 {0} vs HP {1}',
     overkillLine: '오버킬: {0} 피해 (마지막 타격의 {1}%)',
+    timeToKillLine: '처치 소요 시간: {0}',
   },
   ja: {
     pageTitle: 'Mechabellum 撃破に必要な攻撃回数マトリクス',
@@ -394,6 +435,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: '相手のHP強化',
     seniorAttackSpecialist: '上級攻撃スペシャリスト',
     seniorDefenseSpecialist: '上級防御スペシャリスト',
+    cellValueLabel: 'セルの値',
+    showHits: '攻撃回数',
+    showTime: '時間',
     requires: '{0}が必要',
     yourAtk: '自分の攻撃力:',
     opponentHp: '相手のHP:',
@@ -408,6 +452,7 @@ const UI_STRINGS = {
     baseParen: '（基準 {0}）',
     atkVsHp: '攻撃力{0} vs HP{1}',
     overkillLine: 'オーバーキル：{0}ダメージ（とどめの一撃の{1}%）',
+    timeToKillLine: '撃破までの時間：{0}',
   },
   'zh-TW': {
     pageTitle: 'Mechabellum 擊殺所需攻擊次數矩陣',
@@ -416,6 +461,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: '對方生命值強化',
     seniorAttackSpecialist: '高級攻擊專家',
     seniorDefenseSpecialist: '高級防禦專家',
+    cellValueLabel: '儲存格數值',
+    showHits: '攻擊次數',
+    showTime: '耗時',
     requires: '需要先取得{0}',
     yourAtk: '你的攻擊力：',
     opponentHp: '對方生命值：',
@@ -430,6 +478,7 @@ const UI_STRINGS = {
     baseParen: '（基準 {0}）',
     atkVsHp: '攻擊力 {0} 對 生命值 {1}',
     overkillLine: '過量擊殺：{0} 點傷害（佔致命一擊的 {1}%）',
+    timeToKillLine: '擊殺耗時：{0}',
   },
   'es-US': {
     pageTitle: 'Mechabellum: matriz de golpes para eliminar',
@@ -438,6 +487,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: 'Mejoras de PV del rival',
     seniorAttackSpecialist: 'Especialista superior en ataque',
     seniorDefenseSpecialist: 'Especialista superior en defensa',
+    cellValueLabel: 'Valor de la celda',
+    showHits: 'Golpes',
+    showTime: 'Tiempo',
     requires: 'Requiere {0}',
     yourAtk: 'Tu ATQ:',
     opponentHp: 'PV del rival:',
@@ -452,6 +504,7 @@ const UI_STRINGS = {
     baseParen: '(base {0})',
     atkVsHp: 'ATQ {0} frente a PV {1}',
     overkillLine: 'Daño en exceso: {0} ({1}% del golpe letal)',
+    timeToKillLine: 'Tiempo para eliminar: {0}',
   },
   pl: {
     pageTitle: 'Mechabellum: macierz trafień do zabicia',
@@ -460,6 +513,9 @@ const UI_STRINGS = {
     opponentHpUpgrades: 'Wzmocnienia PW przeciwnika',
     seniorAttackSpecialist: 'Starszy specjalista ds. ataku',
     seniorDefenseSpecialist: 'Starszy specjalista ds. obrony',
+    cellValueLabel: 'Wartość komórki',
+    showHits: 'Trafienia',
+    showTime: 'Czas',
     requires: 'Wymaga: {0}',
     yourAtk: 'Twój ATK:',
     opponentHp: 'PW przeciwnika:',
@@ -474,6 +530,7 @@ const UI_STRINGS = {
     baseParen: '(baza {0})',
     atkVsHp: 'ATK {0} vs PW {1}',
     overkillLine: 'Nadmiarowe obrażenia: {0} ({1}% ciosu dobijającego)',
+    timeToKillLine: 'Czas do zabicia: {0}',
   },
 };
 
@@ -485,38 +542,101 @@ function t(key, ...args) {
   return str;
 }
 
-const BONUS = { atk1: 0.12, atk2: 0.24, specAtk: 0.30, hp1: 0.15, hp2: 0.30, specHp: 0.30 };
+// Single source of truth for the six upgrade toggles: which summary/legend
+// side they add to, their bonus, and (for the two-tier tech upgrades) their
+// tier-1 prerequisite. termKey looks up the real in-game name from
+// UPGRADE_TERMS; labelKey is used instead for the two Specialist cards,
+// which have no confirmed in-game term (see NOTES.md).
+const UPGRADES = {
+  atk1: { group: 'atk', bonus: 0.12, termKey: 'atk1' },
+  atk2: { group: 'atk', bonus: 0.24, termKey: 'atk2', requires: 'atk1' },
+  specAtk: { group: 'atk', bonus: 0.30, labelKey: 'seniorAttackSpecialist' },
+  hp1: { group: 'hp', bonus: 0.15, termKey: 'hp1' },
+  hp2: { group: 'hp', bonus: 0.30, termKey: 'hp2', requires: 'hp1' },
+  specHp: { group: 'hp', bonus: 0.30, labelKey: 'seniorDefenseSpecialist' },
+};
+
+function upgradeDisplayName(key) {
+  const { termKey, labelKey } = UPGRADES[key];
+  return termKey ? upgradeTermName(termKey) : t(labelKey);
+}
+
+function sumBonus(group) {
+  return Object.entries(UPGRADES)
+    .filter(([, cfg]) => cfg.group === group)
+    .reduce((sum, [key, cfg]) => sum + (state[key] ? cfg.bonus : 0), 0);
+}
+
+const upgradeButtons = () => document.querySelectorAll('button.toggle[data-upg]');
+const modeButtons = () => document.querySelectorAll('button.toggle[data-mode]');
+
 const REL_SCALE_CAP = 0.5; // relative delta magnitude that maps to full color intensity
-const state = { atk1: false, atk2: false, specAtk: false, hp1: false, hp2: false, specHp: false };
+const state = Object.fromEntries(Object.keys(UPGRADES).map((key) => [key, false]));
+let displayMode = 'hits'; // 'hits' or 'time' -- which value the matrix cells show
 
-// Tier-2 tech upgrades require their tier-1 prerequisite: picking atk2/hp2
-// auto-enables atk1/hp1, and dropping atk1/hp1 auto-drops atk2/hp2. The
-// Senior Specialist cards (specAtk/specHp) have no such dependency.
-const REQUIRES = { atk2: 'atk1', hp2: 'hp1' };
-const IMPLIES = { atk1: 'atk2', hp1: 'hp2' };
+// Time to kill = hits x attack interval: attack speed isn't affected by any
+// upgrade this page models, so it's a constant multiplier on hits -- which
+// means the relative delta from baseline (what drives cell color) is
+// identical whether you're looking at hits or time. This assumes the
+// attacker is already in range and firing back-to-back, with no wind-up
+// before the first shot.
+function formatTime(seconds) {
+  if (seconds < 60) return `${Math.round(seconds * 10) / 10}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  return `${Math.round(seconds / 360) / 10}h`;
+}
 
+// Tier-2 tech upgrades require their tier-1 prerequisite (UPGRADES[key].requires):
+// picking atk2/hp2 auto-enables atk1/hp1, and dropping atk1/hp1 auto-drops
+// atk2/hp2. The Senior Specialist cards (specAtk/specHp) have no such
+// dependency, so they have no `requires` entry.
 function setUpgrade(key, value) {
   state[key] = value;
-  if (value && REQUIRES[key]) state[REQUIRES[key]] = true;
-  if (!value && IMPLIES[key]) state[IMPLIES[key]] = false;
-  document.querySelectorAll('button.toggle').forEach(btn => {
+  const { requires } = UPGRADES[key];
+  if (value && requires) state[requires] = true;
+  if (!value) {
+    for (const [dependentKey, cfg] of Object.entries(UPGRADES)) {
+      if (cfg.requires === key) state[dependentKey] = false;
+    }
+  }
+  upgradeButtons().forEach(btn => {
     btn.setAttribute('aria-pressed', String(state[btn.dataset.upg]));
   });
   render();
 }
 
 function canTarget(attacker, defender) {
-  const t = attacker.target;
-  if (!t || t === 'None') return false;
-  if (t === 'Air & Ground') return true;
-  if (t === 'Ground Only') return !defender.flying;
-  if (t === 'Air Only') return defender.flying;
+  const targeting = attacker.target;
+  if (!targeting || targeting === 'None') return false;
+  if (targeting === 'Air & Ground') return true;
+  if (targeting === 'Ground Only') return !defender.flying;
+  if (targeting === 'Air Only') return defender.flying;
   return false;
 }
 
-function hitsToKill(atk, hp) {
+// A handful of "laser"-type weapons (Melting Point, Steel Ball) deal only a
+// fraction of ATK on the first hit against a target and ramp up per
+// consecutive hit via a fixed lookup table pulled straight from the game's
+// own LaserSkillData (see rampMultipliers in units_data.json) -- not a
+// fitted curve. Once the table is exhausted the multiplier stays at its
+// last (highest) entry. This makes ramping units *worse* against targets
+// that die before the ramp matters and *much* better against high-HP ones.
+function hitsToKill(atk, hp, ramp) {
   if (atk <= 0) return null;
-  return Math.ceil(hp / atk);
+  if (!ramp) {
+    const hits = Math.ceil(hp / atk);
+    return { hits, lastHitDamage: atk, totalDamage: hits * atk };
+  }
+  let cumulative = 0;
+  let tick = 0;
+  let lastHitDamage = 0;
+  const lastTick = ramp.length - 1;
+  while (cumulative < hp) {
+    lastHitDamage = atk * ramp[Math.min(tick, lastTick)];
+    cumulative += lastHitDamage;
+    tick += 1;
+  }
+  return { hits: tick, lastHitDamage, totalDamage: cumulative };
 }
 
 function hexToRgb(hex) {
@@ -539,6 +659,13 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function el(className, text) {
+  const e = document.createElement('div');
+  e.className = className;
+  e.textContent = text;
+  return e;
+}
+
 function buildTable() {
   const table = document.getElementById('matrix');
   let html = `<thead><tr><th class="corner">${escapeHtml(t('attackerDefender'))}</th>`;
@@ -558,8 +685,8 @@ function buildTable() {
 }
 
 function render() {
-  const atkBonus = (state.atk1 ? BONUS.atk1 : 0) + (state.atk2 ? BONUS.atk2 : 0) + (state.specAtk ? BONUS.specAtk : 0);
-  const hpBonus = (state.hp1 ? BONUS.hp1 : 0) + (state.hp2 ? BONUS.hp2 : 0) + (state.specHp ? BONUS.specHp : 0);
+  const atkBonus = sumBonus('atk');
+  const hpBonus = sumBonus('hp');
   document.getElementById('atk-pct').textContent = `+${Math.round(atkBonus * 100)}%`;
   document.getElementById('hp-pct').textContent = `+${Math.round(hpBonus * 100)}%`;
 
@@ -570,82 +697,106 @@ function render() {
   for (const a of UNITS) {
     for (const d of UNITS) {
       const cell = document.querySelector(`td[data-row="${a.id}"][data-col="${d.id}"]`);
-      const base = canTarget(a, d) ? hitsToKill(a.atk, d.hp) : null;
+      const baseResult = canTarget(a, d) ? hitsToKill(a.atk, d.hp, a.rampMultipliers) : null;
       cell.classList.remove('na', 'dark-text', 'self');
       cell.style.backgroundColor = '';
 
-      if (base === null) {
+      if (baseResult === null) {
         cell.classList.add('na');
         cell.textContent = '–';
         cell.removeAttribute('data-tt');
         continue;
       }
+      const base = baseResult.hits;
 
       const effAtk = a.atk * (1 + atkBonus);
       const effHp = d.hp * (1 + hpBonus);
-      const hits = hitsToKill(effAtk, effHp);
+      const result = hitsToKill(effAtk, effHp, a.rampMultipliers);
+      const hits = result.hits;
       const delta = hits - base;
-      cell.textContent = hits.toLocaleString();
+      const timeToKill = hits * a.attackInterval;
+      const baseTimeToKill = base * a.attackInterval;
+      cell.textContent = displayMode === 'time' ? formatTime(timeToKill) : hits.toLocaleString();
       if (a.id === d.id) cell.classList.add('self');
 
-      let t = 0, pole = null;
+      let intensity = 0, pole = null;
       if (delta !== 0) {
-        t = Math.min(Math.abs(delta) / base / REL_SCALE_CAP, 1);
+        intensity = Math.min(Math.abs(delta) / base / REL_SCALE_CAP, 1);
         pole = delta < 0 ? goodPole : badPole;
       }
-      cell.style.backgroundColor = pole ? lerpColor(neutral, pole, t) : neutral;
-      if (t > 0.55) cell.classList.add('dark-text');
+      cell.style.backgroundColor = pole ? lerpColor(neutral, pole, intensity) : neutral;
+      if (intensity > 0.55) cell.classList.add('dark-text');
 
       // Overkill: only the killing hit can ever be "wasted" -- every prior
-      // hit lands on a defender still above zero, so it's fully used.
-      const overkill = hits * effAtk - effHp;
-      const overkillPct = (overkill / effAtk) * 100;
+      // hit lands on a defender still above zero, so it's fully used. For
+      // ramping weapons, totalDamage/lastHitDamage already account for the
+      // per-tick multiplier, not just hits x effAtk.
+      const overkill = result.totalDamage - effHp;
+      const overkillPct = (overkill / result.lastHitDamage) * 100;
 
       cell.dataset.tt = JSON.stringify({
         aId: a.id, dId: d.id, hits, base, delta,
         effAtk: Math.round(effAtk * 10) / 10, effHp: Math.round(effHp * 10) / 10,
         overkill: Math.round(overkill * 10) / 10, overkillPct: Math.round(overkillPct * 10) / 10,
+        timeToKill, baseTimeToKill,
       });
     }
   }
 }
 
-const UPGRADE_BUTTON_LABELS = { atk1: 'atk1', atk2: 'atk2', specAtk: null, hp1: 'hp1', hp2: 'hp2', specHp: null };
-const UPGRADE_BUTTON_PCT = { atk1: 12, atk2: 24, specAtk: 30, hp1: 15, hp2: 30, specHp: 30 };
-const UPGRADE_BUTTON_PREREQ = { atk2: 'atk1', hp2: 'hp1' };
+// Simple id -> UI_STRINGS key bindings for applyUIStrings; anything needing
+// more than a plain textContent assignment is handled separately below.
+const TEXT_BINDINGS = {
+  'page-title': 'pageTitle',
+  subtitle: 'subtitle',
+  'heading-atk': 'yourAttackUpgrades',
+  'heading-hp': 'opponentHpUpgrades',
+  'heading-cell-value': 'cellValueLabel',
+  'label-your-atk': 'yourAtk',
+  'label-opponent-hp': 'opponentHp',
+  'legend-fewer': 'fewerHitsNeeded',
+  'legend-more': 'moreHitsNeeded',
+  'legend-na': 'cantTarget',
+};
 
 function applyUIStrings() {
   document.documentElement.lang = LANGUAGES[currentLang].code;
   document.title = t('pageTitle');
-  document.getElementById('page-title').textContent = t('pageTitle');
-  document.getElementById('subtitle').textContent = t('subtitle');
-  document.getElementById('heading-atk').textContent = t('yourAttackUpgrades');
-  document.getElementById('heading-hp').textContent = t('opponentHpUpgrades');
-  document.getElementById('label-your-atk').textContent = t('yourAtk');
-  document.getElementById('label-opponent-hp').textContent = t('opponentHp');
-  document.getElementById('legend-fewer').textContent = t('fewerHitsNeeded');
-  document.getElementById('legend-more').textContent = t('moreHitsNeeded');
-  document.getElementById('legend-na').textContent = t('cantTarget');
+  for (const [id, key] of Object.entries(TEXT_BINDINGS)) {
+    document.getElementById(id).textContent = t(key);
+  }
   document.getElementById('lang-switcher').title = t('langSwitcherTitle');
 
-  document.querySelectorAll('button.toggle').forEach((btn) => {
+  upgradeButtons().forEach((btn) => {
     const key = btn.dataset.upg;
-    const termKey = UPGRADE_BUTTON_LABELS[key];
-    const name = termKey ? upgradeTermName(termKey)
-      : (key === 'specAtk' ? t('seniorAttackSpecialist') : t('seniorDefenseSpecialist'));
-    btn.textContent = `${name} (+${UPGRADE_BUTTON_PCT[key]}%)`;
-    const prereq = UPGRADE_BUTTON_PREREQ[key];
-    if (prereq) {
-      btn.title = t('requires', upgradeTermName(UPGRADE_BUTTON_LABELS[prereq]));
+    const { bonus, requires } = UPGRADES[key];
+    btn.textContent = `${upgradeDisplayName(key)} (+${Math.round(bonus * 100)}%)`;
+    if (requires) {
+      btn.title = t('requires', upgradeDisplayName(requires));
     } else {
       btn.removeAttribute('title');
     }
   });
+
+  modeButtons().forEach((btn) => {
+    btn.textContent = btn.dataset.mode === 'time' ? t('showTime') : t('showHits');
+  });
+}
+
+function setDisplayMode(mode) {
+  displayMode = mode;
+  modeButtons().forEach((btn) => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.mode === mode));
+  });
+  render();
 }
 
 function initToggles() {
-  document.querySelectorAll('button.toggle').forEach(btn => {
+  upgradeButtons().forEach(btn => {
     btn.addEventListener('click', () => setUpgrade(btn.dataset.upg, !state[btn.dataset.upg]));
+  });
+  modeButtons().forEach(btn => {
+    btn.addEventListener('click', () => setDisplayMode(btn.dataset.mode));
   });
 }
 
@@ -663,22 +814,14 @@ function initTooltip() {
     const d = JSON.parse(cell.dataset.tt);
     const deltaStr = d.delta === 0 ? t('sameAsBaseline') : t('vsBaseline', d.delta > 0 ? `+${d.delta}` : d.delta);
     tt.innerHTML = '';
-    const title = document.createElement('div');
-    title.className = 'tt-title';
-    title.textContent = `${unitName(unitsById.get(d.aId))} → ${unitName(unitsById.get(d.dId))}`;
-    const value = document.createElement('div');
-    value.className = 'tt-value';
-    value.textContent = t('hitsLabel', d.hits.toLocaleString());
-    const deltaRow = document.createElement('div');
-    deltaRow.className = 'tt-row';
-    deltaRow.textContent = `${deltaStr} ${t('baseParen', d.base.toLocaleString())}`;
-    const statsRow = document.createElement('div');
-    statsRow.className = 'tt-row';
-    statsRow.textContent = t('atkVsHp', d.effAtk.toLocaleString(), d.effHp.toLocaleString());
-    const overkillRow = document.createElement('div');
-    overkillRow.className = 'tt-row';
-    overkillRow.textContent = t('overkillLine', d.overkill.toLocaleString(), d.overkillPct);
-    tt.append(title, value, deltaRow, statsRow, overkillRow);
+    tt.append(
+      el('tt-title', `${unitName(unitsById.get(d.aId))} → ${unitName(unitsById.get(d.dId))}`),
+      el('tt-value', t('hitsLabel', d.hits.toLocaleString())),
+      el('tt-row', `${deltaStr} ${t('baseParen', d.base.toLocaleString())}`),
+      el('tt-row', t('atkVsHp', d.effAtk.toLocaleString(), d.effHp.toLocaleString())),
+      el('tt-row', t('overkillLine', d.overkill.toLocaleString(), d.overkillPct)),
+      el('tt-row', `${t('timeToKillLine', formatTime(d.timeToKill))} ${t('baseParen', formatTime(d.baseTimeToKill))}`),
+    );
     tt.style.display = 'block';
   });
 
@@ -759,8 +902,11 @@ async function init() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     LANGUAGES = data.languages;
-    UNITS = data.units;
     UPGRADE_TERMS = data.upgradeTerms;
+    // Only the standard, directly-deployable roster: Experimental/spawned/
+    // rotating cards have their own separate balance and mixing them in
+    // would make the matrix apples-to-oranges (see NOTES.md).
+    UNITS = data.units.filter((u) => u.specialUnit === 0 && !u.testUnit);
     unitsById = new Map(UNITS.map((u) => [u.id, u]));
   } catch (err) {
     document.getElementById('matrix-shell').innerHTML =
